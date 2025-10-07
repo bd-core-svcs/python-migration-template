@@ -203,11 +203,12 @@ spec:
           - backstage-migrated
 
     - id: register
-      name: Register in Catalog
+      name: Register in Catalog (Optional)
       action: catalog:register
       input:
         repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
         catalogInfoPath: '/catalog-info.yaml'
+        optional: true
 
     - id: create-argocd-config-pr
       name: Create ArgoCD Configuration PR
