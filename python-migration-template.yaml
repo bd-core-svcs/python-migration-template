@@ -17,7 +17,6 @@ metadata:
     github.com/project-slug: blackduck-common/platform-devportal
 spec:
   owner: platform-team
-  type: migration
   parameters:
     - title: Migration Information
       properties:
@@ -31,23 +30,37 @@ spec:
           ui:readonly: true
           ui:help: 'This template is specifically for Python repository migrations'
     
-    - title: Python Service Migration
+    - title: Source Repository Information
       required:
         - sourceRepoUrl
-        - destinationRepoUrl
+        - description
+        - owner
       properties:
         sourceRepoUrl:
-          title: Source Repository
+          title: Source Repository URL
           type: string
-          description: The GitHub repository URL to migrate from
-          default: 'https://github.com/SIG-Innovation-Zone/service-llm'
+          description: The GitHub repository URL to migrate from (e.g., https://github.com/SIG-Innovation-Zone/service-llm)
           pattern: '^https://github\.com/[^/]+/[^/]+/?$'
           ui:autofocus: true
           ui:help: 'Full GitHub repository URL including https://github.com/'
-        destinationRepoUrl:
-          title: Destination Repository
+        description:
+          title: Description
           type: string
-          description: Choose a location to create the migrated repository
+          description: Description of the Python service being migrated
+          default: 'Migration from SIG-Innovation-Zone'
+        owner:
+          title: Owner
+          type: string
+          description: Owner of the migrated service
+          default: 'platform-team'
+
+    - title: Destination Repository Information
+      required:
+        - destinationRepoUrl
+      properties:
+        destinationRepoUrl:
+          title: Destination Repository Location
+          type: string
           ui:field: RepoUrlPicker
           ui:options:
             allowedHosts:
@@ -56,17 +69,16 @@ spec:
               - bd-polaris
               - bd-core-svcs
               - blackduck-common
-        description:
-          title: Description
+
+    - title: Migration Configuration
+      properties:
+        projectType:
+          title: Project Type
           type: string
-          description: Description of the Python service being migrated
-          default: 'Migration from SIG-Innovation-Zone'
-        serviceType:
-          title: Service Type
-          type: string
-          description: Type of Python service being migrated
-          default: 'llm-gateway'
+          description: Type of Python project being migrated
+          default: 'python-service'
           enum:
+            - 'python-service'
             - 'llm-gateway'
             - 'api-service'
             - 'ml-service'
@@ -74,14 +86,14 @@ spec:
             - 'web-service'
             - 'other'
         addDockerfile:
-          title: Update Dockerfile
+          title: Add Dockerfile
           type: boolean
-          description: Update Dockerfile for new organization requirements
+          description: Generate Dockerfile if not present in source repository
           default: true
-        addPythonWorkflow:
-          title: Add Python GitHub Workflow
+        addGitHubWorkflow:
+          title: Add GitHub Workflow
           type: boolean
-          description: Add Python-specific GitHub Actions workflow for CI/CD
+          description: Add CI/CD GitHub Actions workflow
           default: true
         createArgoCDConfig:
           title: Create ArgoCD Configuration
@@ -89,53 +101,9 @@ spec:
           description: Create ArgoCD configuration for deployment
           default: true
         migrationNote:
-          title: Migration Note
-          type: string
-          description: Additional notes about the migration
-          default: 'Migrated Python service from SIG-Innovation-Zone repository'
-
-    - title: Python Service Configuration
-      properties:
-        pythonVersion:
-          title: Python Version
-          type: string
-          description: Python version for the service
-          default: '3.11'
-          enum:
-            - '3.9'
-            - '3.10'
-            - '3.11'
-            - '3.12'
-        framework:
-          title: Python Framework
-          type: string
-          description: Main Python framework used
-          default: 'fastapi'
-          enum:
-            - 'fastapi'
-            - 'flask'
-            - 'django'
-            - 'litellm'
-            - 'other'
-        hasDatabase:
-          title: Has Database
-          type: boolean
-          description: Service uses a database (PostgreSQL/MySQL)
-          default: true
-        hasRedis:
-          title: Has Redis
-          type: boolean
-          description: Service uses Redis for caching
-          default: true
-        hasDocumentation:
-          title: Has Documentation
-          type: boolean
-          description: Generate documentation setup (MkDocs)
-          default: true
-        migrationNotes:
           title: Migration Notes
           type: string
-          description: Additional notes about this Python service migration (optional)
+          description: Additional notes about this migration (optional)
           ui:widget: textarea
 
   steps:
@@ -199,16 +167,8 @@ spec:
           - migrated
           - python
           - ${{ parameters.serviceType }}
-          - ${{ parameters.framework }}
+          - ${{ parameters.projectType }}
           - backstage-migrated
-
-    - id: register
-      name: Register in Catalog (Optional)
-      action: catalog:register
-      input:
-        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
-        catalogInfoPath: '/catalog-info.yaml'
-        optional: true
 
     - id: create-argocd-config-pr
       name: Create ArgoCD Configuration PR
@@ -268,9 +228,6 @@ spec:
     links:
       - title: Migrated Python Service Repository
         url: ${{ steps.publish.output.remoteUrl }}
-      - title: Open in catalog
-        icon: catalog
-        entityRef: ${{ steps.register.output.entityRef }}
       - title: Source Repository
         url: ${{ parameters.sourceRepoUrl }}
       - title: View ArgoCD Config PR
