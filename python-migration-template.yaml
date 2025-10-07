@@ -34,8 +34,7 @@ spec:
     - title: Python Service Migration
       required:
         - sourceRepoUrl
-        - destinationOwner
-        - destinationRepo
+        - destinationRepoUrl
       properties:
         sourceRepoUrl:
           title: Source Repository
@@ -45,21 +44,16 @@ spec:
           pattern: '^https://github\.com/[^/]+/[^/]+/?$'
           ui:autofocus: true
           ui:help: 'Full GitHub repository URL including https://github.com/'
-        destinationOwner:
-          title: Destination Owner
-          type: string
-          description: The GitHub organization for the destination repository
-          default: 'bd-polaris'
-          enum:
-            - bd-polaris
-            - bd-core-svcs
-            - blackduck-common
-        destinationRepo:
+        destinationRepoUrl:
           title: Destination Repository
           type: string
-          description: The name of the destination repository
-          default: 'service-llm'
-          pattern: '^[a-zA-Z0-9._-]+$'
+          description: Choose a location to create the migrated repository
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+            allowedOwners:
+              - bd-polaris
         description:
           title: Description
           type: string
@@ -162,9 +156,9 @@ spec:
         url: ./migration-skeleton
         targetPath: '.'
         values:
-          name: ${{ parameters.destinationRepo }}
+          name: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
           description: ${{ parameters.description }}
-          owner: ${{ parameters.destinationOwner }}
+          owner: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('owner') }}
           sourceRepo: ${{ parameters.sourceRepoUrl }}
           serviceType: ${{ parameters.serviceType }}
           pythonVersion: ${{ parameters.pythonVersion }}
@@ -184,7 +178,7 @@ spec:
         url: ./argocd-config
         targetPath: 'argocd-config'
         values:
-          name: ${{ parameters.destinationRepo }}
+          name: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
           serviceType: ${{ parameters.serviceType }}
           pythonVersion: ${{ parameters.pythonVersion }}
 
@@ -194,7 +188,7 @@ spec:
       input:
         allowedHosts: ['github.com']
         description: 'Migrated Python service from ${{ parameters.sourceRepoUrl }} - ${{ parameters.description }}'
-        repoUrl: 'https://github.com/${{ parameters.destinationOwner }}/${{ parameters.destinationRepo }}'
+        repoUrl: ${{ parameters.destinationRepoUrl }}
         defaultBranch: main
         gitCommitMessage: 'Initial migration from ${{ parameters.sourceRepoUrl }}'
         gitAuthorName: 'Backstage Migration'
@@ -219,12 +213,12 @@ spec:
       action: publish:github:pull-request
       input:
         allowedHosts: ['github.com']
-        description: 'Add ArgoCD configuration for migrated Python service ${{ parameters.destinationRepo }}'
+        description: 'Add ArgoCD configuration for migrated Python service ${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }}'
         repoUrl: 'https://github.com/bd-polaris/argo-config'
-        branchName: 'add-argocd-config-${{ parameters.destinationRepo }}'
-        title: 'Add ArgoCD configuration for ${{ parameters.destinationRepo }} (migrated Python service)'
+        branchName: 'add-argocd-config-${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }}'
+        title: 'Add ArgoCD configuration for ${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }} (migrated Python service)'
         sourcePath: 'argocd-config'
-        targetPath: '${{ parameters.destinationRepo }}'
+        targetPath: '${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }}'
 
     - id: migration-summary
       name: Migration Summary
