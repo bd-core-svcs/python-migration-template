@@ -214,7 +214,7 @@ spec:
       input:
         allowedHosts: ['github.com']
         description: 'Add ArgoCD configuration for migrated Python service ${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }}'
-        repoUrl: 'https://github.com/bd-polaris/argo-config'
+        repoUrl: 'github.com?owner=bd-polaris&repo=argo-config'
         branchName: 'add-argocd-config-${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }}'
         title: 'Add ArgoCD configuration for ${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }} (migrated Python service)'
         sourcePath: 'argocd-config'
