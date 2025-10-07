@@ -2,7 +2,7 @@ apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
   name: python-service-migration
-  title: Python Service Migration (Cross-Organization)
+  title: Python Migration (Cross-Organization)
   description: Migrate an existing Python service repository from one GitHub organization to another with Python-specific CI/CD setup
   tags:
     - migration
@@ -19,6 +19,18 @@ spec:
   owner: platform-team
   type: migration
   parameters:
+    - title: Migration Information
+      properties:
+        techStack:
+          title: Tech Stack
+          type: string
+          description: Technology stack for this migration
+          default: 'Python'
+          enum:
+            - 'Python'
+          ui:readonly: true
+          ui:help: 'This template is specifically for Python repository migrations'
+    
     - title: Python Service Migration
       required:
         - sourceRepoUrl
