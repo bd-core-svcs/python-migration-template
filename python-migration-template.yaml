@@ -16,6 +16,7 @@ metadata:
     backstage.io/techdocs-ref: dir:.
     github.com/project-slug: blackduck-common/platform-devportal
 spec:
+  type: migration
   owner: platform-team
   parameters:
     - title: Migration Information
@@ -119,38 +120,23 @@ spec:
         # Use GitHub integration for SIG-Innovation-Zone
         # The GitHub App bd-migration-reader handles authentication automatically
 
-    - id: prepare-migration
-      name: Prepare Python Migration Templates (Overlay)
-      action: fetch:template
+    - id: create-catalog-info
+      name: Create catalog-info.yaml for Python service
+      action: catalog:write
       input:
-        url: ./migration-skeleton
-        targetPath: '.'
-        values:
-          name: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
-          description: ${{ parameters.description }}
-          owner: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('owner') }}
-          sourceRepo: ${{ parameters.sourceRepoUrl }}
-          serviceType: ${{ parameters.serviceType }}
-          pythonVersion: ${{ parameters.pythonVersion }}
-          framework: ${{ parameters.framework }}
-          hasDatabase: ${{ parameters.hasDatabase }}
-          hasRedis: ${{ parameters.hasRedis }}
-          hasDocumentation: ${{ parameters.hasDocumentation }}
-          addDockerfile: ${{ parameters.addDockerfile }}
-          addPythonWorkflow: ${{ parameters.addPythonWorkflow }}
-          migrationNote: ${{ parameters.migrationNote }}
-
-    - id: fetch-argocd-config
-      name: Fetch ArgoCD Config Templates
-      condition: ${{ parameters.createArgoCDConfig }}
-      action: fetch:template
-      input:
-        url: ./argocd-config
-        targetPath: 'argocd-config'
-        values:
-          name: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
-          serviceType: ${{ parameters.serviceType }}
-          pythonVersion: ${{ parameters.pythonVersion }}
+        filePath: 'catalog-info.yaml'
+        entity:
+          apiVersion: backstage.io/v1alpha1
+          kind: Component
+          metadata:
+            name: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
+            description: ${{ parameters.description }}
+            annotations:
+              github.com/project-slug: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('owner') }}/${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
+          spec:
+            type: service
+            lifecycle: experimental
+            owner: ${{ parameters.owner }}
 
     - id: publish
       name: Create and Publish to Destination
