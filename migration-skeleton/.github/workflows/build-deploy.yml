@@ -1,0 +1,129 @@
+name: Build and deploy to BD Polaris
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+    branches:
+      - "main"
+  repository_dispatch:
+    types: [build]
+  schedule:
+    - cron: '0 6 * * 0' # 6am UTC = 11pm PST / 11:30 IST on Sundays redeploy to stay up to date with main:latest
+
+env:
+  PYTHON_VERSION: "${{ values.pythonVersion }}"
+  SERVICE_NAME: "${{ values.name }}"
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+          # Install common development dependencies
+          pip install pytest black flake8 mypy
+
+      - name: Lint with flake8
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Format check with black
+        run: |
+          black --check --diff .
+
+      - name: Type check with mypy
+        continue-on-error: true
+        run: |
+          mypy . --ignore-missing-imports
+
+      - name: Test with pytest
+        run: |
+          if [ -d "tests" ] || [ -f "test_*.py" ]; then
+            pytest --verbose
+          else
+            echo "No tests found, skipping pytest"
+          fi
+
+  container-build:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - uses: 'google-github-actions/auth@v2'
+        id: 'auth'
+        with:
+          credentials_json: '${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}'
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y%m%d_')" >> $GITHUB_OUTPUT
+
+      - name: Git Version
+        id: version
+        uses: codacy/git-version@2.7.1
+        with:
+          prefix: ${{ steps.date.outputs.date }}
+
+      - name: Use the version
+        run: |
+          echo ${{ steps.version.outputs.version }}
+
+      - name: container-build
+        uses: whitehatsec/pipelines-library/github/actions/docker-build-helper@main
+        id: container-build
+        with:
+          dockerfile: build/docker/Dockerfile
+          container-path: cloudops-artifacts-prd/bd-polaris/${{ env.SERVICE_NAME }}
+          container-tag: ${{ steps.version.outputs.version }}
+
+  deploy:
+    needs: container-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to BD Polaris
+        run: |
+          echo "Deploying ${{ env.SERVICE_NAME }} to BD Polaris environment"
+          # Add your deployment logic here
+          # This could involve updating Kubernetes manifests, ArgoCD sync, etc.
+
+      - name: Notify deployment
+        run: |
+          echo "✅ ${{ env.SERVICE_NAME }} deployment completed successfully"
+          echo "🔗 Service URL: https://${{ env.SERVICE_NAME }}.labs.blackduck.com"

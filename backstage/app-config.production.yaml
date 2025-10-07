@@ -1,0 +1,86 @@
+app:
+  title: LLM Service Template Portal
+  baseUrl: https://llm-template.platform.duckutil.net
+  stack: production
+
+backend:
+  baseUrl: https://llm-template.platform.duckutil.net
+  listen: ':7007'
+  database:
+    client: pg
+    connection:
+      host: ${POSTGRES_SERVICE_HOST}
+      port: ${POSTGRES_SERVICE_PORT}
+      user: ${POSTGRES_USER}
+      password: ${POSTGRES_PASSWORD}
+  reading:
+    allow:
+      - host: '*.platform.duckutil.net'
+      - host: '*.duckutil.net'
+
+integrations:
+  github:
+    - host: github.com
+      apps:
+        - $include: github-app-credentials.yaml
+
+auth:
+  providers:
+    github:
+      development:
+        clientId: ${GITHUB_CLIENT_ID}
+        clientSecret: ${GITHUB_CLIENT_SECRET}
+        signIn:
+          resolvers:
+            - resolver: usernameMatchingUserEntityName
+
+catalog:
+  locations:
+    # LLM Service Template (this repository)
+    - type: url
+      target: https://github.com/bd-core-svcs/service-llm-template/blob/main/template.yaml
+      rules:
+        - allow: [Template]
+
+  providers:
+    githubOrg:
+      id: production
+      githubUrl: https://github.com
+      orgs: ['bd-core-svcs']
+      schedule:
+        initialDelay: { seconds: 30 }
+        frequency: { hours: 1 }
+        timeout: { minutes: 20 }
+    github:
+      providerId:
+        organization: 'bd-core-svcs'
+        catalogPath: '/catalog-info.yaml'
+        filters:
+          branch: 'main'
+          repository: '.*'
+        schedule:
+          frequency: { minutes: 30 }
+          timeout: { minutes: 3 }
+
+kubernetes:
+  serviceLocatorMethod:
+    type: 'multiTenant'
+  clusterLocatorMethods:
+    - type: 'config'
+      clusters:
+        - url: ${EKS_CLUSTER_URL}
+          name: sig-saas-innovation-zone
+          authProvider: 'aws'
+          skipTLSVerify: false
+          skipMetricsLookup: false
+          exposeDashboard: true
+
+techdocs:
+  builder: 'local'
+  generator:
+    runIn: 'local'
+  publisher:
+    type: 'awsS3'
+    awsS3:
+      bucketName: ${TECHDOCS_S3_BUCKET_NAME}
+      region: us-east-1

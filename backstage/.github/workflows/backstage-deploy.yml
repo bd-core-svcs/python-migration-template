@@ -1,0 +1,100 @@
+name: Build and Deploy Backstage
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'backstage/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'backstage/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: bd-core-svcs/service-llm-template-backstage
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata (tags, labels) for Docker
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backstage
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Update kubeconfig
+      run: aws eks update-kubeconfig --name sig-saas-innovation-zone --region us-east-1
+
+    - name: Install Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.12.0'
+
+    - name: Deploy Backstage to Kubernetes
+      run: |
+        helm upgrade --install backstage-llm-template ./backstage/charts/backstage \
+          --namespace backstage \
+          --create-namespace \
+          --set image.tag=${{ github.sha }} \
+          --set config.github.clientId="${{ secrets.GITHUB_CLIENT_ID }}" \
+          --set config.github.clientSecret="${{ secrets.GITHUB_CLIENT_SECRET }}" \
+          --set config.github.token="${{ secrets.GITHUB_TOKEN }}" \
+          --set config.github.app.id="${{ secrets.GITHUB_APP_ID }}" \
+          --set config.github.app.installationId="${{ secrets.GITHUB_APP_INSTALLATION_ID }}" \
+          --set config.github.app.privateKey="${{ secrets.GITHUB_APP_PRIVATE_KEY }}" \
+          --set config.aws.accountId="${{ secrets.AWS_ACCOUNT_ID }}" \
+          --set config.techdocs.s3BucketName="${{ secrets.TECHDOCS_S3_BUCKET_NAME }}" \
+          --set postgresql.auth.postgresPassword="${{ secrets.POSTGRES_PASSWORD }}" \
+          --wait
+
+    - name: Verify deployment
+      run: |
+        kubectl get pods -n backstage -l app.kubernetes.io/name=backstage
+        kubectl get service -n backstage -l app.kubernetes.io/name=backstage
+        kubectl get ingress -n backstage

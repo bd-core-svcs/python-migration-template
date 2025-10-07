@@ -1,0 +1,70 @@
+app:
+  title: LLM Service Template Portal
+  baseUrl: http://localhost:3000
+
+organization:
+  name: BlackDuck Software
+
+backend:
+  baseUrl: http://localhost:7007
+  listen:
+    port: 7007
+  csp:
+    connect-src: ["'self'", 'http:', 'https:']
+  cors:
+    origin: http://localhost:3000
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    credentials: true
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
+
+integrations:
+  github:
+    - host: github.com
+      token: ${GITHUB_TOKEN}
+
+auth:
+  providers:
+    github:
+      development:
+        clientId: ${GITHUB_CLIENT_ID}
+        clientSecret: ${GITHUB_CLIENT_SECRET}
+        signIn:
+          resolvers:
+            - resolver: usernameMatchingUserEntityName
+
+scaffolder:
+  templateFilters:
+    - type: regex
+      pattern: '^(?!.*\.git$).*$'
+
+catalog:
+  import:
+    entityFilename: catalog-info.yaml
+    pullRequestBranchName: backstage-integration
+  rules:
+    - allow: [Component, System, API, Resource, Location, Template]
+  locations:
+    # LLM Service Template
+    - type: file
+      target: ../template.yaml
+      rules:
+        - allow: [Template]
+
+  providers:
+    githubOrg:
+      id: production
+      githubUrl: https://github.com
+      orgs: ['bd-core-svcs']
+      schedule:
+        initialDelay: { seconds: 30 }
+        frequency: { hours: 1 }
+        timeout: { minutes: 20 }
+
+techdocs:
+  builder: 'local'
+  generator:
+    runIn: 'docker'
+  publisher:
+    type: 'local'

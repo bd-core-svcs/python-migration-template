@@ -1,0 +1,147 @@
+name: Deploy LLM Template Portal
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  BACKSTAGE_IMAGE_NAME: bd-core-svcs/service-llm-template-backstage
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    name: Validate Template
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Validate template.yaml
+      uses: ibiqlik/action-yamllint@v3
+      with:
+        file_or_dir: template.yaml
+        config_file: .github/yamllint.yml
+
+    - name: Check template structure
+      run: |
+        echo "Validating template structure..."
+        if [ ! -f template.yaml ]; then
+          echo "❌ template.yaml not found"
+          exit 1
+        fi
+        if [ ! -d skeleton ]; then
+          echo "❌ skeleton directory not found"
+          exit 1
+        fi
+        echo "✅ Template structure is valid"
+
+    - name: List template files
+      run: |
+        echo "📁 Template files:"
+        find skeleton -type f | head -20
+
+  build-backstage:
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata for Docker
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.BACKSTAGE_IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Backstage image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backstage
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+  deploy-backstage:
+    runs-on: ubuntu-latest
+    needs: [validate, build-backstage]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Update kubeconfig
+      run: aws eks update-kubeconfig --name sig-saas-innovation-zone --region us-east-1
+
+    - name: Install Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.12.0'
+
+    - name: Deploy Backstage to EKS
+      run: |
+        helm upgrade --install backstage-llm-template ./backstage/charts/backstage \
+          --namespace backstage \
+          --create-namespace \
+          --set image.tag=${{ github.sha }} \
+          --set config.github.clientId="${{ secrets.GITHUB_CLIENT_ID }}" \
+          --set config.github.clientSecret="${{ secrets.GITHUB_CLIENT_SECRET }}" \
+          --set config.github.token="${{ secrets.GITHUB_TOKEN_BACKSTAGE }}" \
+          --set config.github.app.id="${{ secrets.GITHUB_APP_ID }}" \
+          --set config.github.app.installationId="${{ secrets.GITHUB_APP_INSTALLATION_ID }}" \
+          --set config.github.app.privateKey="${{ secrets.GITHUB_APP_PRIVATE_KEY }}" \
+          --set config.aws.accountId="${{ secrets.AWS_ACCOUNT_ID }}" \
+          --set config.techdocs.s3BucketName="${{ secrets.TECHDOCS_S3_BUCKET_NAME }}" \
+          --set postgresql.auth.postgresPassword="${{ secrets.POSTGRES_PASSWORD }}" \
+          --wait \
+          --timeout 10m
+
+    - name: Verify deployment
+      run: |
+        echo "🔍 Checking deployment status..."
+        kubectl get pods -n backstage -l app.kubernetes.io/name=backstage
+        kubectl get services -n backstage -l app.kubernetes.io/name=backstage
+        kubectl get ingress -n backstage
+        
+        echo ""
+        echo "🎉 Deployment complete!"
+        echo "🌐 Backstage should be available at: https://llm-template.platform.duckutil.net"
+
+    - name: Post deployment status
+      if: always()
+      run: |
+        if [ ${{ job.status }} == 'success' ]; then
+          echo "✅ Backstage LLM Template Portal deployed successfully"
+          echo "📝 Template is now available for creating LLM services"
+          echo "🔗 Access the portal at: https://llm-template.platform.duckutil.net"
+        else
+          echo "❌ Deployment failed. Check the logs above for details."
+        fi

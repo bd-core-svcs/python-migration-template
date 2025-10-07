@@ -1,0 +1,175 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: llm-gateway-service
+  title: LLM Gateway Service
+  description: Create a new LLM Gateway service based on LiteLLM with PostgreSQL, Redis, and management capabilities
+  tags:
+    - recommended
+    - python
+    - llm
+    - litellm
+    - ai
+    - gateway
+spec:
+  owner: platform-team
+  type: service
+  parameters:
+    - title: Service Information
+      required:
+        - name
+        - description
+        - owner
+      properties:
+        name:
+          title: Name
+          type: string
+          description: Unique name of the LLM service
+          pattern: '^([a-z0-9\-]+)$'
+          ui:autofocus: true
+          ui:help: 'Use lowercase letters, numbers, and hyphens only'
+        description:
+          title: Description
+          type: string
+          description: Help others understand what this LLM service is for
+        owner:
+          title: Owner
+          type: string
+          description: Owner of the service
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+
+    - title: Repository Information
+      required:
+        - repoUrl
+      properties:
+        repoUrl:
+          title: Repository Location
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+            allowedOrganizations:
+              - bd-core-svcs
+              - blackduck-common
+
+    - title: LLM Service Configuration
+      properties:
+        url:
+          title: Service URL
+          type: string
+          description: Subdomain for the LLM service (e.g., 'my-llm' for my-llm.labs.blackduck.com)
+          pattern: '^([a-z0-9\-]+)$'
+          ui:help: 'Use lowercase letters, numbers, and hyphens only'
+        domain:
+          title: Service Domain
+          type: string
+          description: Domain for the LLM service
+          default: 'labs.blackduck.com'
+        port:
+          title: Service Port
+          type: integer
+          description: Port number for the LLM gateway service
+          default: 8000
+        pythonVersion:
+          title: Python Version
+          type: string
+          description: Python version to use
+          default: '3.11'
+          enum:
+            - '3.9'
+            - '3.10'
+            - '3.11'
+            - '3.12'
+        litellmVersion:
+          title: LiteLLM Version
+          type: string
+          description: LiteLLM version to use
+          default: 'main-v1.75.5-stable'
+
+    - title: Features & Configuration
+      properties:
+        enableAuth:
+          title: Enable Authentication
+          type: boolean
+          description: Enable Auth0/OAuth authentication
+          default: true
+        enableRedis:
+          title: Enable Redis Cache
+          type: boolean
+          description: Include Redis for caching
+          default: true
+        enablePostgreSQL:
+          title: Enable PostgreSQL
+          type: boolean
+          description: Include PostgreSQL database
+          default: true
+        enableManagementCLI:
+          title: Enable Management CLI
+          type: boolean
+          description: Include management CLI for user/model administration
+          default: true
+        enableDatadog:
+          title: Enable Datadog Monitoring
+          type: boolean
+          description: Include Datadog monitoring integration
+          default: false
+        enableAzureStorage:
+          title: Enable Azure Storage
+          type: boolean
+          description: Include Azure Storage for audit logs
+          default: false
+
+  steps:
+    - id: fetch-base
+      name: Fetch Base
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          name: ${{ parameters.name }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          url: ${{ parameters.url }}
+          domain: ${{ parameters.domain }}
+          port: ${{ parameters.port }}
+          pythonVersion: ${{ parameters.pythonVersion }}
+          litellmVersion: ${{ parameters.litellmVersion }}
+          enableAuth: ${{ parameters.enableAuth }}
+          enableRedis: ${{ parameters.enableRedis }}
+          enablePostgreSQL: ${{ parameters.enablePostgreSQL }}
+          enableManagementCLI: ${{ parameters.enableManagementCLI }}
+          enableDatadog: ${{ parameters.enableDatadog }}
+          enableAzureStorage: ${{ parameters.enableAzureStorage }}
+          repoUrl: ${{ parameters.repoUrl | parseRepoUrl }}
+          serviceAccountName: ${{ parameters.name }}
+
+    - id: publish
+      name: Publish
+      action: publish:github
+      input:
+        allowedHosts: ['github.com']
+        description: This is ${{ parameters.name }}
+        repoUrl: ${{ parameters.repoUrl }}
+        defaultBranch: main
+        gitCommitMessage: 'Initial commit for ${{ parameters.name }}'
+        gitAuthorName: 'Backstage Scaffolder'
+        gitAuthorEmail: 'scaffolder@backstage.io'
+
+    - id: register
+      name: Register
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: '/catalog-info.yaml'
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}

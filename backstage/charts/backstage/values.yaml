@@ -1,0 +1,127 @@
+# Default values for backstage
+replicaCount: 1
+
+image:
+  repository: ghcr.io/bd-core-svcs/service-llm-template-backstage
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 7007
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: llm-template.platform.duckutil.net
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: backstage-tls
+      hosts:
+        - llm-template.platform.duckutil.net
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Application configuration
+config:
+  environment: production
+  
+  # GitHub integration
+  github:
+    clientId: ""
+    clientSecret: ""
+    token: ""
+    
+    # GitHub App credentials
+    app:
+      id: ""
+      installationId: ""
+      privateKey: ""
+  
+  # AWS configuration
+  aws:
+    accountId: ""
+    region: "us-east-1"
+    
+  # S3 for TechDocs
+  techdocs:
+    s3BucketName: ""
+
+# PostgreSQL configuration
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "changeme-postgres-password"
+    database: backstage
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+
+# Health checks
+livenessProbe:
+  httpGet:
+    path: /healthcheck
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /healthcheck
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+# Monitoring
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s

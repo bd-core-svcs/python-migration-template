@@ -1,0 +1,93 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  description: ${{ values.description }}
+  annotations:
+    github.com/project-slug: bd-core-svcs/${{ values.name }}
+    backstage.io/kubernetes-id: ${{ values.serviceAccountName }}
+    backstage.io/kubernetes-namespace: ${{ values.name }}
+    backstage.io/techdocs-ref: dir:.
+  tags:
+    - python
+    - llm
+    - litellm
+    - ai
+    - gateway
+{%- if values.enableAuth %}
+    - auth0
+{%- endif %}
+{%- if values.enableRedis %}
+    - redis
+{%- endif %}
+{%- if values.enablePostgreSQL %}
+    - postgresql
+{%- endif %}
+  links:
+    - url: https://github.com/bd-core-svcs/${{ values.name }}
+      title: Source Code
+      icon: github
+    - url: https://${{ values.url }}.${{ values.domain }}
+      title: LLM Gateway
+      icon: web
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+  system: system:default/innovationzone
+  providesApis:
+    - ${{ values.name }}-api
+  dependsOn:
+{%- if values.enablePostgreSQL %}
+    - resource:${{ values.name }}-database
+{%- endif %}
+{%- if values.enableRedis %}
+    - resource:${{ values.name }}-redis
+{%- endif %}
+    - component:pipelines-library
+
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: ${{ values.name }}-api
+  description: ${{ values.name }} LLM Gateway API
+  annotations:
+    github.com/project-slug: bd-core-svcs/${{ values.name }}
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+  system: system:default/innovationzone
+  definition:
+    $text: https://${{ values.url }}.${{ values.domain }}/openapi.json
+
+{%- if values.enablePostgreSQL %}
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: ${{ values.name }}-database
+  description: PostgreSQL database for ${{ values.name }}
+  annotations:
+    github.com/project-slug: bd-core-svcs/${{ values.name }}
+spec:
+  type: database
+  owner: ${{ values.owner }}
+  system: system:default/innovationzone
+{%- endif %}
+
+{%- if values.enableRedis %}
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: ${{ values.name }}-redis
+  description: Redis cache for ${{ values.name }}
+  annotations:
+    github.com/project-slug: bd-core-svcs/${{ values.name }}
+spec:
+  type: cache
+  owner: ${{ values.owner }}
+  system: system:default/innovationzone
+{%- endif %}

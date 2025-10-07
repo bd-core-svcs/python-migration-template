@@ -1,0 +1,268 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: python-service-migration
+  title: Python Service Migration (Cross-Organization)
+  description: Migrate an existing Python service repository from one GitHub organization to another with Python-specific CI/CD setup
+  tags:
+    - migration
+    - cross-org
+    - repository
+    - github
+    - python
+    - llm-service
+    - ci-cd
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    github.com/project-slug: blackduck-common/platform-devportal
+spec:
+  owner: platform-team
+  type: migration
+  parameters:
+    - title: Python Service Migration
+      required:
+        - sourceRepoUrl
+        - destinationOwner
+        - destinationRepo
+      properties:
+        sourceRepoUrl:
+          title: Source Repository
+          type: string
+          description: The GitHub repository URL to migrate from
+          default: 'https://github.com/SIG-Innovation-Zone/service-llm'
+          pattern: '^https://github\.com/[^/]+/[^/]+/?$'
+          ui:autofocus: true
+          ui:help: 'Full GitHub repository URL including https://github.com/'
+        destinationOwner:
+          title: Destination Owner
+          type: string
+          description: The GitHub organization for the destination repository
+          default: 'bd-polaris'
+          enum:
+            - bd-polaris
+            - bd-core-svcs
+            - blackduck-common
+        destinationRepo:
+          title: Destination Repository
+          type: string
+          description: The name of the destination repository
+          default: 'service-llm'
+          pattern: '^[a-zA-Z0-9._-]+$'
+        description:
+          title: Description
+          type: string
+          description: Description of the Python service being migrated
+          default: 'Migration from SIG-Innovation-Zone'
+        serviceType:
+          title: Service Type
+          type: string
+          description: Type of Python service being migrated
+          default: 'llm-gateway'
+          enum:
+            - 'llm-gateway'
+            - 'api-service'
+            - 'ml-service'
+            - 'data-service'
+            - 'web-service'
+            - 'other'
+        addDockerfile:
+          title: Update Dockerfile
+          type: boolean
+          description: Update Dockerfile for new organization requirements
+          default: true
+        addPythonWorkflow:
+          title: Add Python GitHub Workflow
+          type: boolean
+          description: Add Python-specific GitHub Actions workflow for CI/CD
+          default: true
+        createArgoCDConfig:
+          title: Create ArgoCD Configuration
+          type: boolean
+          description: Create ArgoCD configuration for deployment
+          default: true
+        migrationNote:
+          title: Migration Note
+          type: string
+          description: Additional notes about the migration
+          default: 'Migrated Python service from SIG-Innovation-Zone repository'
+
+    - title: Python Service Configuration
+      properties:
+        pythonVersion:
+          title: Python Version
+          type: string
+          description: Python version for the service
+          default: '3.11'
+          enum:
+            - '3.9'
+            - '3.10'
+            - '3.11'
+            - '3.12'
+        framework:
+          title: Python Framework
+          type: string
+          description: Main Python framework used
+          default: 'fastapi'
+          enum:
+            - 'fastapi'
+            - 'flask'
+            - 'django'
+            - 'litellm'
+            - 'other'
+        hasDatabase:
+          title: Has Database
+          type: boolean
+          description: Service uses a database (PostgreSQL/MySQL)
+          default: true
+        hasRedis:
+          title: Has Redis
+          type: boolean
+          description: Service uses Redis for caching
+          default: true
+        hasDocumentation:
+          title: Has Documentation
+          type: boolean
+          description: Generate documentation setup (MkDocs)
+          default: true
+        migrationNotes:
+          title: Migration Notes
+          type: string
+          description: Additional notes about this Python service migration (optional)
+          ui:widget: textarea
+
+  steps:
+    - id: fetch-source
+      name: Fetch Source Repository
+      action: fetch:template
+      input:
+        url: ${{ parameters.sourceRepoUrl }}
+        targetPath: '.'
+        # Copy all files from source repository without template processing
+        copyWithoutRender: 
+          - '**/*'
+        # Use GitHub integration for SIG-Innovation-Zone
+        # The GitHub App bd-migration-reader handles authentication automatically
+
+    - id: prepare-migration
+      name: Prepare Python Migration Templates (Overlay)
+      action: fetch:template
+      input:
+        url: ./migration-skeleton
+        targetPath: '.'
+        values:
+          name: ${{ parameters.destinationRepo }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.destinationOwner }}
+          sourceRepo: ${{ parameters.sourceRepoUrl }}
+          serviceType: ${{ parameters.serviceType }}
+          pythonVersion: ${{ parameters.pythonVersion }}
+          framework: ${{ parameters.framework }}
+          hasDatabase: ${{ parameters.hasDatabase }}
+          hasRedis: ${{ parameters.hasRedis }}
+          hasDocumentation: ${{ parameters.hasDocumentation }}
+          addDockerfile: ${{ parameters.addDockerfile }}
+          addPythonWorkflow: ${{ parameters.addPythonWorkflow }}
+          migrationNote: ${{ parameters.migrationNote }}
+
+    - id: fetch-argocd-config
+      name: Fetch ArgoCD Config Templates
+      condition: ${{ parameters.createArgoCDConfig }}
+      action: fetch:template
+      input:
+        url: ./argocd-config
+        targetPath: 'argocd-config'
+        values:
+          name: ${{ parameters.destinationRepo }}
+          serviceType: ${{ parameters.serviceType }}
+          pythonVersion: ${{ parameters.pythonVersion }}
+
+    - id: publish
+      name: Create and Publish to Destination
+      action: publish:github
+      input:
+        allowedHosts: ['github.com']
+        description: 'Migrated Python service from ${{ parameters.sourceRepoUrl }} - ${{ parameters.description }}'
+        repoUrl: 'https://github.com/${{ parameters.destinationOwner }}/${{ parameters.destinationRepo }}'
+        defaultBranch: main
+        gitCommitMessage: 'Initial migration from ${{ parameters.sourceRepoUrl }}'
+        gitAuthorName: 'Backstage Migration'
+        gitAuthorEmail: 'migration@backstage.io'
+        topics:
+          - migrated
+          - python
+          - ${{ parameters.serviceType }}
+          - ${{ parameters.framework }}
+          - backstage-migrated
+
+    - id: register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: '/catalog-info.yaml'
+
+    - id: create-argocd-config-pr
+      name: Create ArgoCD Configuration PR
+      condition: ${{ parameters.createArgoCDConfig }}
+      action: publish:github:pull-request
+      input:
+        allowedHosts: ['github.com']
+        description: 'Add ArgoCD configuration for migrated Python service ${{ parameters.destinationRepo }}'
+        repoUrl: 'https://github.com/bd-polaris/argo-config'
+        branchName: 'add-argocd-config-${{ parameters.destinationRepo }}'
+        title: 'Add ArgoCD configuration for ${{ parameters.destinationRepo }} (migrated Python service)'
+        sourcePath: 'argocd-config'
+        targetPath: '${{ parameters.destinationRepo }}'
+
+    - id: migration-summary
+      name: Migration Summary
+      action: debug:log
+      input:
+        message: |
+          🎉 Python Service migration completed successfully!
+          
+          ✅ **Migration Details:**
+          - **Source**: ${{ parameters.sourceRepoUrl }}
+          - **Destination**: ${{ steps.publish.output.remoteUrl }}
+          - **Service Type**: ${{ parameters.serviceType }}
+          - **Python Version**: ${{ parameters.pythonVersion }}
+          - **Framework**: ${{ parameters.framework }}
+          
+          ✅ **What was created:**
+          1. **Migrated Repository**: ${{ steps.publish.output.remoteUrl }}
+          2. **ArgoCD Configuration PR**: Check `bd-polaris/argo-config` for PR (if enabled)
+          3. **Python GitHub Workflow**: CI/CD pipeline added (if enabled)
+          4. **Updated Dockerfile**: Configured for new organization (if enabled)
+          5. **Database Support**: PostgreSQL/Redis configurations preserved (if detected)
+          6. **Documentation**: MkDocs setup maintained (if detected)
+          
+          ✅ **Python Service Features:**
+          - ✅ Complete source code migration
+          - ✅ Python-specific CI/CD pipeline
+          - ✅ Container support with updated Dockerfile
+          - ✅ ArgoCD deployment configuration
+          - ✅ Database and Redis configurations preserved
+          - ✅ Documentation setup maintained
+          
+          ⚠️ **Important Notes:**
+          - Source repository remains unchanged
+          - Review and customize generated files as needed
+          - Update environment variables for new organization
+          - Merge ArgoCD configuration PR to enable deployment
+          - Update any hardcoded references to new organization
+          - Verify database connection strings and Redis configurations
+          
+          📝 **Migration Notes:**
+          ${{ parameters.migrationNotes || "No additional notes provided" }}
+
+  output:
+    links:
+      - title: Migrated Python Service Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
+      - title: Source Repository
+        url: ${{ parameters.sourceRepoUrl }}
+      - title: View ArgoCD Config PR
+        url: 'https://github.com/bd-polaris/argo-config/pulls'

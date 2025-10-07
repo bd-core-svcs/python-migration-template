@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  ${{ values.name }}:
+    build: .
+    ports:
+      - "${{ values.port }}:${{ values.port }}"
+    environment:
+      - ENVIRONMENT=development
+{%- if values.enablePostgreSQL %}
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/${{ values.name }}
+{%- endif %}
+{%- if values.enableRedis %}
+      - REDIS_URL=redis://redis:6379
+{%- endif %}
+{%- if values.enableAuth %}
+      - AUTH0_DOMAIN=${{ values.auth0Domain }}
+      - AUTH0_AUDIENCE=${{ values.auth0Audience }}
+{%- endif %}
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    depends_on:
+{%- if values.enablePostgreSQL %}
+      - postgres
+{%- endif %}
+{%- if values.enableRedis %}
+      - redis
+{%- endif %}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${{ values.port }}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+{%- if values.enablePostgreSQL %}
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${{ values.name }}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+{%- endif %}
+
+{%- if values.enableRedis %}
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+{%- endif %}
+
+volumes:
+{%- if values.enablePostgreSQL %}
+  postgres_data:
+{%- endif %}
+{%- if values.enableRedis %}
+  redis_data:
+{%- endif %}

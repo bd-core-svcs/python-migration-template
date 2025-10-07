@@ -1,0 +1,38 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  description: "${{ values.description }}"
+  annotations:
+    github.com/project-slug: ${{ values.owner }}/${{ values.name }}
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/kubernetes-id: ${{ values.name }}
+    backstage.io/kubernetes-namespace: ${{ values.name }}
+  tags:
+    - python
+    - migrated
+    - ${{ values.serviceType }}
+    - ${{ values.framework }}
+    - database
+    - redis
+    - llm
+    - ai
+    - gateway
+  links:
+    - title: Service UI
+      url: https://${{ values.name }}.labs.blackduck.com
+    - title: API Documentation  
+      url: https://${{ values.name }}.labs.blackduck.com/docs
+    - title: Source Repository (Original)
+      url: ${{ values.sourceRepo }}
+      icon: github
+spec:
+  type: service
+  lifecycle: experimental
+  system: system:default/bd-polaris
+  owner: "group:default/platform-team"
+  dependsOn:
+    - resource:default/postgresql
+    - resource:default/redis
+  providesApis:
+    - ${{ values.name }}-api

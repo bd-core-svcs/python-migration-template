@@ -1,0 +1,98 @@
+name: Build and deploy to SIG SaaS Innovation Zone
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata (tags, labels) for Docker
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Update kubeconfig
+      run: aws eks update-kubeconfig --name sig-saas-innovation-zone --region us-east-1
+
+    - name: Install Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.12.0'
+
+    - name: Deploy to Kubernetes
+      run: |
+        helm upgrade --install ${{ values.name }} ./helm/${{ values.name }} \
+          --namespace ${{ values.namespace }} \
+          --create-namespace \
+          --set image.tag=${{ github.sha }} \
+          --set config.litellm.masterKey="${{ secrets.LITELLM_MASTER_KEY }}" \
+          --set config.azure.apiBase="${{ secrets.AZURE_API_BASE }}" \
+          --set config.azure.apiKey="${{ secrets.AZURE_API_KEY }}" \
+          --set config.aws.accessKeyId="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+          --set config.aws.secretAccessKey="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+          --set config.openai.apiKey="${{ secrets.OPENAI_API_KEY }}" \
+{%- if values.enablePostgreSQL %}
+          --set postgresql.auth.postgresPassword="${{ secrets.POSTGRES_PASSWORD }}" \
+{%- endif %}
+{%- if values.enableRedis %}
+          --set redis.auth.password="${{ secrets.REDIS_PASSWORD }}" \
+{%- endif %}
+          --wait
+
+    - name: Verify deployment
+      run: |
+        kubectl get pods -n ${{ values.namespace }} -l app.kubernetes.io/name=${{ values.name }}
+        kubectl get service -n ${{ values.namespace }} -l app.kubernetes.io/name=${{ values.name }}

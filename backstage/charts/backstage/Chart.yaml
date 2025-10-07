@@ -1,0 +1,23 @@
+apiVersion: v2
+name: backstage
+description: A Helm chart for LLM Template Portal Backstage
+version: 1.0.0
+appVersion: "1.0.0"
+type: application
+keywords:
+  - backstage
+  - devops
+  - llm
+  - templates
+home: https://github.com/bd-core-svcs/service-llm-template
+sources:
+  - https://github.com/bd-core-svcs/service-llm-template
+maintainers:
+  - name: bd-core-svcs
+    email: bd-core-svcs@blackduck.com
+
+dependencies:
+  - name: postgresql
+    version: 12.x.x
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
