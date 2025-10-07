@@ -208,6 +208,8 @@ spec:
       input:
         repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
         catalogInfoPath: '/catalog-info.yaml'
+      if: ${{ steps.publish.output.repoContentsUrl }}
+      continueOnError: true
 
     - id: create-argocd-config-pr
       name: Create ArgoCD Configuration PR
