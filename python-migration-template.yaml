@@ -165,10 +165,15 @@ spec:
         gitAuthorEmail: 'migration@backstage.io'
         topics:
           - migrated
-          - python
-          - ${{ parameters.serviceType }}
           - ${{ parameters.projectType }}
           - backstage-migrated
+
+    - id: register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: '/catalog-info.yaml'
 
     - id: create-argocd-config-pr
       name: Create ArgoCD Configuration PR
@@ -228,6 +233,9 @@ spec:
     links:
       - title: Migrated Python Service Repository
         url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
       - title: Source Repository
         url: ${{ parameters.sourceRepoUrl }}
       - title: View ArgoCD Config PR
