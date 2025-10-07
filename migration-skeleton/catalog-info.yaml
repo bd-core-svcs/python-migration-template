@@ -8,6 +8,7 @@ metadata:
     backstage.io/techdocs-ref: dir:.
     backstage.io/kubernetes-id: ${{ values.name }}
     backstage.io/kubernetes-namespace: ${{ values.name }}
+    backstage.io/migration-timestamp: "${{ '' | now | date('iso') }}"
   tags:
     - python
     - migrated

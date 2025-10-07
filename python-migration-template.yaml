@@ -52,8 +52,10 @@ spec:
           ui:options:
             allowedHosts:
               - github.com
-            allowedOwners:
+            allowedOrganizations:
               - bd-polaris
+              - bd-core-svcs
+              - blackduck-common
         description:
           title: Description
           type: string
