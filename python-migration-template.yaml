@@ -160,114 +160,17 @@ spec:
       input:
         repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
         catalogInfoPath: '/catalog-info.yaml'
+        optional: true
 
-    - id: create-argocd-appset
-      name: Create ArgoCD ApplicationSet
+    - id: fetch-argocd-config
+      name: Fetch ArgoCD Config Templates
       condition: ${{ parameters.createArgoCDConfig }}
-      action: fs:write
+      action: fetch:template
       input:
-        path: argocd-config/appset.yaml
-        content: |
-          apiVersion: argoproj.io/v1alpha1
-          kind: ApplicationSet
-          metadata:
-            name: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
-            namespace: argocd
-          spec:
-            generators:
-              - list:
-                  elements:
-                    - name: coresvcs-utility
-                      cluster: https://kubernetes.default.svc
-                      appNamespace: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
-                      valuesFile: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}/dev-values.yaml
-            template:
-              metadata:
-                name: '${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}'
-              spec:
-                project: coresvcs
-                sources:
-                  - repoURL: us-docker.pkg.dev/cloudops-artifacts-prd/helm-charts
-                    chart: web-service
-                    targetRevision: 0.0.11
-                    helm:
-                      valueFiles:
-                        - $values/${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}/dev-values.yaml
-                      values: |
-                        image:
-                          repository: us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
-                          tag: main
-                  - repoURL: https://github.com/bd-core-svcs/argo-config
-                    targetRevision: HEAD
-                    ref: values
-                destination:
-                  server: '{{ cluster }}'
-                  namespace: '{{ appNamespace }}'
-                syncPolicy:
-                  syncOptions:
-                    - CreateNamespace=true
-                  automated:
-                    prune: true
-                    selfHeal: true
-
-    - id: create-argocd-values
-      name: Create ArgoCD Values
-      condition: ${{ parameters.createArgoCDConfig }}
-      action: fs:write
-      input:
-        path: argocd-config/dev-values.yaml
-        content: |
-          replicaCount: 1
-
-          image:
-            repository: us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
-            pullPolicy: IfNotPresent
-            tag: "latest"
-
-          service:
-            type: ClusterIP
-            port: 8080
-
-          ingress:
-            enabled: true
-            className: "gce-internal"
-            annotations:
-              kubernetes.io/ingress.class: gce-internal
-              kubernetes.io/ingress.allow-http: "true"
-            hosts:
-              - host: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}.dev.svc.gcp.blackduck.com
-                paths:
-                  - path: /
-                    pathType: ImplementationSpecific
-
-          resources:
-            limits:
-              cpu: 500m
-              memory: 1Gi
-            requests:
-              cpu: 250m
-              memory: 512Mi
-
-          autoscaling:
-            enabled: false
-            minReplicas: 1
-            maxReplicas: 3
-            targetCPUUtilizationPercentage: 80
-
-          # Health Probes for Python services
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: http
-            initialDelaySeconds: 30
-            periodSeconds: 10
-
-          readinessProbe:
-            httpGet:
-              path: /ready
-              port: http
-            initialDelaySeconds: 15
-            periodSeconds: 5
+        url: ./argocd-config
+        targetPath: 'argocd-config'
+        values:
+          name: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
 
     - id: create-argocd-config-pr
       name: Create ArgoCD Configuration PR
@@ -275,10 +178,10 @@ spec:
       action: publish:github:pull-request
       input:
         allowedHosts: ['github.com']
-        description: 'Add ArgoCD configuration for migrated Python service ${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }}'
+        description: 'Add ArgoCD configuration for migrated service ${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }}'
         repoUrl: 'github.com?owner=bd-polaris&repo=argo-config'
         branchName: 'add-argocd-config-${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }}'
-        title: 'Add ArgoCD configuration for ${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }} (migrated Python service)'
+        title: 'Add ArgoCD configuration for ${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }} (migrated)'
         sourcePath: 'argocd-config'
         targetPath: '${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }}'
 
@@ -333,4 +236,4 @@ spec:
       - title: Source Repository
         url: ${{ parameters.sourceRepoUrl }}
       - title: View ArgoCD Config PR
-        url: 'https://github.com/bd-polaris/argo-config/pulls'
+        url: 'https://github.com/bd-core-svcs/argo-config/pulls'
