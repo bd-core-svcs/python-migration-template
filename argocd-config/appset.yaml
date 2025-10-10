@@ -3,43 +3,49 @@ kind: ApplicationSet
 metadata:
   name: ${{ values.name }}
   namespace: argocd
-  labels:
-    service: ${{ values.name }}
-    service-type: ${{ values.serviceType }}
-    framework: ${{ values.pythonVersion }}
 spec:
   generators:
-  - list:
-      elements:
-      - cluster: bd-polaris
-        url: https://kubernetes.default.svc
-        environment: production
-        namespace: ${{ values.name }}
+    - list:
+        elements:
+          #- name: coresvcs-dev
+          #  cluster: https://DCD066FD2B0F7B14B0E335FFCF82064E.gr7.us-west-2.eks.amazonaws.com
+          #  appNamespace: ${{ values.name }}
+          #  valuesFile: ${{ values.name }}/dev-values.yaml
+          - name: coresvcs-utility
+            cluster: https://kubernetes.default.svc
+            appNamespace: ${{ values.name }}
+            valuesFile: ${{ values.name }}/dev-values.yaml
+          # - name: coresvcs-prd
+          #   cluster: https://74CFF3A8B39D63CD01C8109C792D8880.gr7.us-west-2.eks.amazonaws.com
+          #   imageTag: latest
+          #   appNamespace: ${{ values.name }}
+          #   valuesFile: ${{ values.name }}/prd-values.yaml
   template:
     metadata:
-      name: '${{ values.name }}-{{cluster}}'
-      labels:
-        service: ${{ values.name }}
-        environment: '{{environment}}'
+      name: '${{ values.name }}'
     spec:
-      project: default
-      source:
-        repoURL: https://github.com/bd-polaris/argo-config
-        targetRevision: HEAD
-        path: ${{ values.name }}/{{environment}}
-        helm:
-          valueFiles:
-          - values.yaml
-          - values-{{environment}}.yaml
+      project: coresvcs
+      sources:
+        - repoURL: us-docker.pkg.dev/cloudops-artifacts-prd/helm-charts
+          chart: web-service
+          targetRevision: 0.0.11
+          helm:
+            valueFiles:
+              - $values/${{ values.name }}/dev-values.yaml
+            values: |
+              image:
+                repository: us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/${{ values.name }}
+                tag: main
+        - repoURL: https://github.com/bd-core-svcs/argo-config
+          targetRevision: HEAD
+          ref: values
       destination:
-        server: '{{url}}'
-        namespace: '{{namespace}}'
+        server: '{{ cluster }}'
+        namespace: '{{ appNamespace }}'
       syncPolicy:
+        syncOptions:
+          - CreateNamespace=true
         automated:
           prune: true
           selfHeal: true
-        syncOptions:
-        - CreateNamespace=true
-        - PrunePropagationPolicy=foreground
-        - PruneLast=true
       revisionHistoryLimit: 10

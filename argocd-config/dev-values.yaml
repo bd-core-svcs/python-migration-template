@@ -1,105 +1,51 @@
-# Helm values for ${{ values.name }} - Python Service
-# Service Type: ${{ values.serviceType }}
-# Python Version: ${{ values.pythonVersion }}
+replicaCount: 1
 
-global:
-  serviceName: ${{ values.name }}
-  serviceType: ${{ values.serviceType }}
-  pythonVersion: ${{ values.pythonVersion }}
+image:
+  repository: us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/${{ values.name }}
+  pullPolicy: IfNotPresent
+  tag: "latest"
 
-# Application configuration
-app:
-  name: ${{ values.name }}
-  version: "latest"
-  image:
-    repository: cloudops-artifacts-prd/bd-polaris/${{ values.name }}
-    tag: "latest"
-    pullPolicy: Always
-
-# Service configuration
 service:
   type: ClusterIP
-  port: 8000
-  targetPort: 8000
+  port: 8080
 
-# Ingress configuration
 ingress:
   enabled: true
-  className: "nginx"
+  className: "gce-internal"
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    kubernetes.io/ingress.class: gce-internal
+    kubernetes.io/ingress.allow-http: "true"
   hosts:
-    - host: ${{ values.name }}.labs.blackduck.com
+    - host: ${{ values.name }}.dev.svc.gcp.blackduck.com
       paths:
         - path: /
-          pathType: Prefix
-  tls:
-    - secretName: ${{ values.name }}-tls
-      hosts:
-        - ${{ values.name }}.labs.blackduck.com
+          pathType: ImplementationSpecific
 
-# Environment variables
-env:
-  NODE_ENV: production
-  SERVICE_NAME: ${{ values.name }}
-  SERVICE_TYPE: ${{ values.serviceType }}
-  PYTHON_VERSION: ${{ values.pythonVersion }}
-
-# Resource limits
 resources:
   limits:
-    cpu: 1000m
-    memory: 2Gi
+    cpu: 500m
+    memory: 1Gi
   requests:
-    cpu: 100m
-    memory: 256Mi
+    cpu: 250m
+    memory: 512Mi
 
-# Horizontal Pod Autoscaler
-hpa:
-  enabled: true
-  minReplicas: 2
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 80
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
 
-# Database configuration (if applicable)
-database:
-  enabled: true
-  type: postgresql
-  host: postgresql-service
-  port: 5432
-  name: ${{ values.name }}
-  
-# Redis configuration (if applicable)  
-redis:
-  enabled: true
-  host: redis-service
-  port: 6379
-
-# Health checks
-healthCheck:
-  enabled: true
-  path: /health
+# Health Probes for Python services
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
   initialDelaySeconds: 30
   periodSeconds: 10
-  timeoutSeconds: 5
-  failureThreshold: 3
 
-# Liveness probe
-livenessProbe:
-  enabled: true
-  path: /health
-  initialDelaySeconds: 60
-  periodSeconds: 30
-  timeoutSeconds: 10
-  failureThreshold: 3
-
-# Readiness probe
 readinessProbe:
-  enabled: true
-  path: /ready
-  initialDelaySeconds: 10
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 15
   periodSeconds: 5
-  timeoutSeconds: 3
-  failureThreshold: 3
