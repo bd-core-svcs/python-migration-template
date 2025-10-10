@@ -138,6 +138,16 @@ spec:
             lifecycle: experimental
             owner: ${{ parameters.owner }}
 
+    - id: fetch-argocd-config
+      name: Fetch ArgoCD Config Templates
+      condition: ${{ parameters.createArgoCDConfig }}
+      action: fetch:template
+      input:
+        url: ./argocd-config
+        targetPath: 'argocd-config'
+        values:
+          name: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
+
     - id: publish
       name: Create and Publish to Destination
       action: publish:github
@@ -160,17 +170,6 @@ spec:
       input:
         repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
         catalogInfoPath: '/catalog-info.yaml'
-        optional: true
-
-    - id: fetch-argocd-config
-      name: Fetch ArgoCD Config Templates
-      condition: ${{ parameters.createArgoCDConfig }}
-      action: fetch:template
-      input:
-        url: ./argocd-config
-        targetPath: 'argocd-config'
-        values:
-          name: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
 
     - id: create-argocd-config-pr
       name: Create ArgoCD Configuration PR
@@ -236,4 +235,4 @@ spec:
       - title: Source Repository
         url: ${{ parameters.sourceRepoUrl }}
       - title: View ArgoCD Config PR
-        url: 'https://github.com/bd-core-svcs/argo-config/pulls'
+        url: 'https://github.com/bd-polaris/argo-config/pulls'
