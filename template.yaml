@@ -171,7 +171,6 @@ spec:
         repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
         catalogInfoPath: '/catalog-info.yaml'
         optional: true
-        optional: true
 
     - id: create-argocd-config-pr
       name: Create ArgoCD Configuration PR
