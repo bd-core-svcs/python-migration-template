@@ -1,4 +1,4 @@
-name: ${{ values.component_id }}
+name: ${{ values.name }}
 on:
   push:
     branches: [ main, develop, feature/* ]
@@ -43,7 +43,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/${{ values.component_id }}
+          images: us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/${{ values.name }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
