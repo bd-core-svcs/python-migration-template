@@ -70,6 +70,8 @@ spec:
               - bd-polaris
               - bd-core-svcs
               - blackduck-common
+              - bd-core-svcs
+              - blackduck-common
 
     - title: Migration Configuration
       properties:
