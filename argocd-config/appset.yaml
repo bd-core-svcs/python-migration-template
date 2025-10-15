@@ -36,7 +36,7 @@ spec:
               image:
                 repository: us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/${{ values.name }}
                 tag: main
-        - repoURL: https://github.com/bd-polaris/argo-config
+        - repoURL: https://github.com/${{ values.organization }}/argo-config
           targetRevision: HEAD
           ref: values
       destination:

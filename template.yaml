@@ -120,98 +120,17 @@ spec:
         # Use GitHub integration for SIG-Innovation-Zone
         # The GitHub App bd-migration-reader handles authentication automatically
 
-    - id: create-github-workflow
-      name: Create GitHub Workflow
-      action: fs:write
+    - id: prepare-migration
+      name: Prepare Migration Templates (Overlay)
+      action: fetch:template
       input:
-        path: '.github/workflows/build-IZ.yml'
-        content: |
+        url: ./migration-skeleton
+        targetPath: '.'
+        values:
           name: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
-          on:
-            push:
-              branches: [ main, develop, feature/* ]
-            pull_request:
-              branches: [ main, develop ]
-            repository_dispatch:
-              types: [build]
-            schedule:
-              - cron: '0 6 * * 0' # 6am UTC = 11pm PST / 11:30 IST on Sundays redeploy to stay up to date with main:latest
-
-          permissions:
-            contents: read
-            id-token: write
-            packages: write
-
-          jobs:
-            build-and-deploy:
-              name: Build and Deploy
-              runs-on: ubuntu-latest
-              
-              steps:
-                - name: Checkout code
-                  uses: actions/checkout@v4
-                  with:
-                    ref: ${{ github.head_ref }}
-                    fetch-depth: 0
-
-                - name: Set up Docker Buildx
-                  uses: docker/setup-buildx-action@v3
-
-                - name: Authenticate to Google Cloud
-                  uses: google-github-actions/auth@v2
-                  with:
-                    workload_identity_provider: projects/736458129177/locations/global/workloadIdentityPools/github-actions-pool-v1alpha1/providers/github-provider-v1alpha1
-                    service_account: sa-gha-core-svcs@sig-innovation-zone-prd.iam.gserviceaccount.com
-
-                - name: Configure Docker for GAR
-                  run: |
-                    gcloud auth configure-docker us-docker.pkg.dev
-
-                - name: Extract metadata for Docker
-                  id: meta
-                  uses: docker/metadata-action@v5
-                  with:
-                    images: us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}-poc-idp
-                    tags: |
-                      type=ref,event=branch
-                      type=ref,event=pr
-                      type=sha,prefix={{branch}}-
-                      type=raw,value=latest,enable={{is_default_branch}}
-
-                - name: Build and push Docker image
-                  id: build
-                  uses: docker/build-push-action@v5
-                  with:
-                    context: .
-                    file: build/docker/Dockerfile
-                    push: true
-                    tags: ${{ steps.meta.outputs.tags }}
-                    labels: ${{ steps.meta.outputs.labels }}
-                    cache-from: type=gha
-                    cache-to: type=gha,mode=max
-
-                - name: Upload Docker artifact
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}-docker-info
-                    path: |
-                      build/docker/Dockerfile
-                      docker-compose.yaml
-                    retention-days: 7
-
-    - id: create-dependabot
-      name: Create Dependabot Configuration
-      action: fs:write
-      input:
-        path: '.github/dependabot.yml'
-        content: |
-          version: 2
-          updates:
-            - package-ecosystem: "github-actions"
-              directory: "/"
-              schedule:
-                interval: "weekly"
-              open-pull-requests-limit: 10
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          sourceRepo: ${{ parameters.sourceRepoUrl }}
 
     - id: create-catalog-info
       name: Create catalog-info.yaml for Python service
@@ -240,6 +159,7 @@ spec:
         targetPath: 'argocd-config'
         values:
           name: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('repo') }}
+          organization: ${{ parameters.destinationRepoUrl | parseRepoUrl | pick('owner') }}
 
     - id: publish
       name: Create and Publish to Destination
