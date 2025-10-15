@@ -1,4 +1,4 @@
-name: ${{ values.name }}
+name: service-llm
 on:
   push:
     branches: [ main, develop, feature/* ]
@@ -39,14 +39,25 @@ jobs:
         run: |
           gcloud auth configure-docker us-docker.pkg.dev
 
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/service-llm-poc-idp
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           file: build/docker/Dockerfile
           push: true
-          tags: |
-            us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/${{ values.name }}-poc-idp:latest
-            us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/${{ values.name }}-poc-idp:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
