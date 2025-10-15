@@ -67,10 +67,8 @@ spec:
             allowedHosts:
               - github.com
             allowedOrganizations:
+              - bd-core-svcs
               - bd-polaris
-              - bd-core-svcs
-              - blackduck-common
-              - bd-core-svcs
               - blackduck-common
 
     - title: Migration Configuration
@@ -181,7 +179,7 @@ spec:
       input:
         allowedHosts: ['github.com']
         description: 'Add ArgoCD configuration for migrated service ${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }}'
-        repoUrl: 'github.com?owner=bd-core-svcs&repo=argo-config'
+        repoUrl: 'github.com?owner=${{ parameters.destinationRepoUrl | parseRepoUrl | pick("owner") }}&repo=argo-config'
         branchName: 'add-argocd-config-${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }}'
         title: 'Add ArgoCD configuration for ${{ parameters.destinationRepoUrl | parseRepoUrl | pick("repo") }} (migrated)'
         sourcePath: 'argocd-config'
@@ -203,7 +201,7 @@ spec:
           
           ✅ **What was created:**
           1. **Migrated Repository**: ${{ steps.publish.output.remoteUrl }}
-          2. **ArgoCD Configuration PR**: Check `bd-core-svcs/argo-config` for PR (if enabled)
+          2. **ArgoCD Configuration PR**: Check `${{ parameters.destinationRepoUrl | parseRepoUrl | pick("owner") }}/argo-config` for PR (if enabled)
           3. **Python GitHub Workflow**: CI/CD pipeline added (if enabled)
           4. **Updated Dockerfile**: Configured for new organization (if enabled)
           5. **Database Support**: PostgreSQL/Redis configurations preserved (if detected)
@@ -238,4 +236,4 @@ spec:
       - title: Source Repository
         url: ${{ parameters.sourceRepoUrl }}
       - title: View ArgoCD Config PR
-        url: 'https://github.com/bd-core-svcs/argo-config/pulls'
+        url: 'https://github.com/${{ parameters.destinationRepoUrl | parseRepoUrl | pick("owner") }}/argo-config/pulls'
