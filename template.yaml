@@ -117,9 +117,9 @@ spec:
         # Copy all files from source repository without template processing
         copyWithoutRender: 
           - '**/*'
-        # Exclude specific files from being copied
+        # Exclude the original .github folder to avoid conflicts with our improved CI/CD
         exclude:
-          - '.github/workflows/build-IZ.yml'
+          - '.github/**/*'
         # Use GitHub integration for SIG-Innovation-Zone
         # The GitHub App bd-migration-reader handles authentication automatically
 

@@ -39,7 +39,7 @@ jobs:
           file: build/docker/Dockerfile
           push: true
           tags: |
-            us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/${{ values.name }}-poc-idp:latest
-            us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/${{ values.name }}-poc-idp:${{ '${{ github.sha }}' }}
+            us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/${{ values.name }}:latest
+            us-docker.pkg.dev/cloudops-artifacts-prd/core-svcs/${{ values.name }}:${{ '${{ github.sha }}' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
